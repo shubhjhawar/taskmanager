@@ -1,0 +1,37 @@
+<div class="w-full flex justify-between items-center pr-6">
+  <h2 mat-dialog-title>Edit your Task</h2>
+  <div class="flex gap-2">
+    <button (click)="deleteTask()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md capitalize">
+      <p>delete only this event</p>
+    </button>
+    @if(EditedTaskFields.repeat === true){
+      <button (click)="deleteRepeatTask()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md capitalize">
+        <p>delete all future events</p>
+      </button>
+    }
+  </div>
+</div>
+<mat-dialog-content>
+  <mat-form-field class="w-full">
+    <mat-label>Heading</mat-label>
+    <input matInput required [(ngModel)]="EditedTaskFields.heading">
+  </mat-form-field>
+  <mat-form-field class="w-full">
+    <mat-label>Description</mat-label>
+    <textarea matInput required [(ngModel)]="EditedTaskFields.description" rows="2"></textarea>
+  </mat-form-field>
+  <mat-form-field class="w-full">
+    <mat-label>Due Date</mat-label>
+    <input matInput [matDatepicker]="picker" [(ngModel)]="EditedTaskFields.variable_dueDate">
+    <mat-hint>MM/DD/YYYY</mat-hint>
+    <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+    <mat-datepicker #picker class="datepicker"></mat-datepicker>
+  </mat-form-field>
+</mat-dialog-content>
+<mat-dialog-actions class="mat-dialog-actions-centered">
+  <button mat-button class="w-1/4 bg-red-400 hover:bg-red-500 text-white px-4 py-2 rounded-md" (click)="onCancelClick()">Cancel</button>
+  @if(EditedTaskFields.repeat === true){
+    <button mat-button [disabled]="!EditedTaskFields" class="w-1/4 bg-blue-400 hover:bg-blue-500 text-white px-4 py-2 rounded-md capitalize" (click)="onEditRepeatTaskClick(EditedTaskFields.repeatID)">Save all tasks</button>
+  }
+  <button mat-button [disabled]="!EditedTaskFields" class="w-1/4 bg-blue-400 hover:bg-blue-500 text-white px-4 py-2 rounded-md capitalize" (click)="onEditTaskClick()">Save this task</button>
+</mat-dialog-actions>

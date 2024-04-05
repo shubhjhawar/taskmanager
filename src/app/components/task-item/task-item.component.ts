@@ -18,6 +18,7 @@ import {
 import {MatListModule} from '@angular/material/list';
 import {MatButtonModule} from '@angular/material/button';
 import { CompletedTask } from '../../models/completed-tasks.model';
+import { TaskService } from '../../shared/services/task.service';
 
 
 @Component({
@@ -81,7 +82,8 @@ export class TaskItemComponent {
 export class EditTaskItemComponent {
   constructor(
     public dialogRef: MatDialogRef<TaskItemComponent>,
-    @Inject(MAT_DIALOG_DATA) public task: any
+    @Inject(MAT_DIALOG_DATA) public task: any,
+    private taskService: TaskService,
   ) {}
   @Output() taskDeleted: EventEmitter<Task> = new EventEmitter<Task>();
 
@@ -110,12 +112,14 @@ export class EditTaskItemComponent {
         Object.assign(this.task, this.EditedTaskFields);
   
         localStorage.setItem("board", JSON.stringify(boardFromLocalStorage));
+        this.taskService.editTask(this.task._id, this.task).subscribe();
   
         this.dialogRef.close();
         return;
       }
     }
-  
+
+
   }
 
   onEditRepeatTaskClick(repeatId: string): void {

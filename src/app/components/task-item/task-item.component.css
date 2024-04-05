@@ -39,4 +39,7 @@
 .datepicker{
     z-index: 100000 !important;
 }
-  
+
+.yesterdayTask {
+  background: red;
+}

@@ -5,6 +5,7 @@
 /tmp
 /out-tsc
 /bazel-out
+/MongoDB/node_modules
 
 # Node
 /node_modules
@@ -27,6 +28,7 @@ yarn-error.log
 !.vscode/launch.json
 !.vscode/extensions.json
 .history/*
+/MongoDB/node_modules
 
 # Miscellaneous
 /.angular/cache

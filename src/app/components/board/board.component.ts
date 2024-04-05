@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter} from '@angular/core';
+import {Component, Input, Output, EventEmitter, OnInit} from '@angular/core';
 import { NgIf } from '@angular/common';
 import {
   CdkDragDrop,
@@ -27,6 +27,8 @@ import {
   isThisYear,
   isNextYear
 } from '../../../utils/date-utils';
+import {TaskService} from "../../shared/services/task.service";
+import { isCurrentMonth, isCurrentQuarter, isCurrentWeek, isCurrentYear, isPastDate } from '../../../utils/filter-utils';
 
 @Component({
   selector: 'app-board',
@@ -35,11 +37,22 @@ import {
   templateUrl: './board.component.html',
   styleUrl: './board.component.css',
 })
-export class BoardComponent {
+export class BoardComponent implements OnInit {
   @Input() board!: Board;
-  constructor(private dialog: MatDialog) {}
-
   @Input() column!: Column;
+
+
+  ngOnInit(): void {
+    this._sortArrayOutTime();
+  }
+  @Output() eventDrag = new EventEmitter();
+  @Output() eventChangeName: EventEmitter<Column> = new EventEmitter<Column>();
+  constructor(
+    private dialog: MatDialog,
+    private taskService: TaskService
+  ) {
+
+  }
 
   drop(event: CdkDragDrop<Task[]>) {
     if (event.previousContainer === event.container) {
@@ -50,13 +63,13 @@ export class BoardComponent {
       // getting localstorage and columnName
       const boardFromLocalStorage = JSON.parse(localStorage.getItem("board") || "{}");
       const columnName = event.container.element.nativeElement.getAttribute('data-column-name');
-      
+
       if (columnName) {
         // finding the column to update
         const columnToUpdate = boardFromLocalStorage.columns.find((col: Column) => col.name === columnName);
         if (columnToUpdate) {
           // Update tasks array in localStorage with the new order
-          columnToUpdate.tasks = event.container.data; 
+          columnToUpdate.tasks = event.container.data;
         } else {
           console.error("Column not found in localStorage:", columnName);
         }
@@ -69,13 +82,16 @@ export class BoardComponent {
 
       // drag drop in different column
       const taskToMove = event.previousContainer.data[event.previousIndex];
+
+      taskToMove.newColumnName = event.container.element.nativeElement.getAttribute('data-column-name') as any;
+      this.taskService.editTask(taskToMove._id, taskToMove).subscribe();
       transferArrayItem(
         event.previousContainer.data,
-        event.container.data, 
+        event.container.data,
         event.previousIndex,
         event.currentIndex
       );
-  
+
       // getting localstorage and columnName
       const boardFromLocalStorage = JSON.parse(localStorage.getItem("board") || "{}");
       const columnName = event.container.element.nativeElement.getAttribute('data-column-name');
@@ -83,11 +99,15 @@ export class BoardComponent {
       if (previousColumnName && columnName) {
         // finding the two columns
         const prevColToUpdate = boardFromLocalStorage.columns.find((col: Column) => col.name === previousColumnName);
+        prevColToUpdate.tasks = prevColToUpdate.tasks.filter((task: Task) => task._id !== taskToMove._id);
         const columnToUpdate = boardFromLocalStorage.columns.find((col: Column) => col.name === columnName);
+
         if (prevColToUpdate && columnToUpdate) {
           // updating the two columns
-          prevColToUpdate.tasks = event.previousContainer.data
+          prevColToUpdate.tasks = event.previousContainer.data.filter((task: Task) => task._id !== taskToMove._id);
           columnToUpdate.tasks = event.container.data;
+
+          this.eventDrag.emit(this.board.columns);
           localStorage.setItem("board", JSON.stringify(boardFromLocalStorage));
         } else {
           console.error("Column not found in localStorage:", columnName);
@@ -105,35 +125,98 @@ export class BoardComponent {
 
   openTaskDialog() {
     this.dialog.open(AddTaskDialogComponent);
-
   }
 
   addTask(task: Task): void {
-    const newTask = new Task(task.heading, task.description, task.fixed_dueDate, task.variable_dueDate, null, false, null, null);  
+    const newTask = new Task(task.heading, task.description, task.fixed_dueDate, task.variable_dueDate, null, false, null, null, false, task._id, '');
     const columnName = this.column.name;
-    
-    const boardFromLocalStorage = JSON.parse(localStorage.getItem("board") || "{}");  
-    const columnToUpdate = boardFromLocalStorage.columns.find((col: Column) => col.name === columnName);
-  
+
+    const boardFromLocalStorage = JSON.parse(localStorage.getItem("board") || "{}");
+   // const columnToUpdate = boardFromLocalStorage.columns.find((col: Column) => col.name === columnName);
+    const columnToUpdate = boardFromLocalStorage.columns.find((col: Column) =>  col.name.toLowerCase() === this.filterTask(newTask.fixed_dueDate));
+
     if (columnToUpdate) {
-      columnToUpdate.tasks.push(newTask);  
+      const  newDate = this.formatDate(newTask.fixed_dueDate);
+      if (isPastDate(newDate.year, newDate.month, newDate.day + 1)) {
+        newTask.outTime = true;
+      }
+      columnToUpdate.tasks.push(newTask);
       localStorage.setItem("board", JSON.stringify(boardFromLocalStorage));
-  
-      console.log("Updated board:", boardFromLocalStorage);
     } else {
-      console.error("Column not found in localStorage:", columnName);
+       console.error("Column not found in localStorage:", columnName);
+    }
+    const index = this.board.columns.findIndex((el: any) => el.name === columnToUpdate.name);
+    if(index !== undefined) {
+      this.board.columns[index].tasks.push(newTask);
+      this._sortArrayOutTime();
     }
 
-    this.column.tasks.push(newTask);
-    console.log("hehe")
+    this.taskService.addTask(newTask).subscribe()
   }
-  
+
+  formatDate(date: Date): {day: number, month: number, year: number} {
+    date = new Date(date)
+    const day = Number(date.getDate().toString().padStart(2, '0'));
+    const month = Number((date.getMonth() + 1).toString().padStart(2, '0'));
+    const year = date.getFullYear();
+    return {day,month,year}
+  }
+
+  filterTask(date: Date): string {
+    const {day,month, year} = this.formatDate(new Date());
+    const  newDate = this.formatDate(date)
+    if (isPastDate(newDate.year, newDate.month, newDate.day)) {
+      return 'today';
+    }
+    if (day === this.formatDate(date).day) {
+      return 'today';
+    }
+    if (day + 1 === this.formatDate(date).day) {
+      return 'tomorrow'
+    }
+    if (day + 1 === this.formatDate(date).day) {
+      return 'tomorrow'
+    }
+    if (isCurrentWeek(date)) {
+      return 'this week'
+    }
+    if (isNextWeek(date)) {
+      return 'next week'
+    }
+
+    if (!isNextWeek(date) && isCurrentMonth(date)) {
+      return 'this month'
+    }
+
+    if (isNextMonth(date)) {
+      return 'next month'
+    }
+
+    if (isCurrentQuarter(date)) {
+      return 'this quarter'
+    }
+
+    if (isNextQuarter(date)) {
+      return 'next quarter'
+    }
+
+    if(isCurrentYear(date)){
+      return 'this year';
+    }
+
+    if(!isCurrentYear(date)){
+      return 'next year';
+    }
+
+    return ''
+  }
 
   onDeleteTask(task: Task): void {
     const index = this.column.tasks.findIndex((t: Task) => t === task);
 
     if (index !== -1) {
-      this.column.tasks.splice(index, 1);
+      this.column.tasks = this.column.tasks.filter((t: Task) => t._id !== task._id);
+//      this.column.tasks.splice(index, 1);
 
       const columnName = this.column.name;
       const boardFromLocalStorage = JSON.parse(localStorage.getItem("board") || "{}");
@@ -152,9 +235,11 @@ export class BoardComponent {
           console.error("Column not found in localStorage:", columnName);
       }
     }
+
+    this.taskService.deleteTask(task._id).subscribe();
   }
 
-  
+
 
   toggleEditColumn() {
     this.isEditingColumn = !this.isEditingColumn;
@@ -166,6 +251,7 @@ export class BoardComponent {
   onEditColumn() {
     this.column.name = this.editedColumnName;
     this.isEditingColumn = false;
+    this.eventChangeName.emit(this.column);
   }
 
   onDeleteColumn(column: Column): void {
@@ -175,15 +261,15 @@ export class BoardComponent {
 
   filterTasks(columnName: string, tasks: Task[]): Task[] {
     const currentDate = new Date();
-    let uniqueTasks: Map<string, Task> = new Map(); 
+    let uniqueTasks: Map<string, Task> = new Map();
 
-    tasks.forEach(task => {
+    tasks?.forEach(task => {
         uniqueTasks.set(task.heading, task);
     });
-    console.log(columnName)
+    // console.log(columnName)
     // console.log(uniqueTasks)
     let visibleTasks: Task[] = [];
-    
+
     uniqueTasks.forEach((task, key) => {
       const timeInQuestion = new Date(task.fixed_dueDate)
       if(!task.repeat){
@@ -244,11 +330,11 @@ export class BoardComponent {
       //     visibleTasks.push(task)
       //   // }
       // }
-      
+
     })
     // Convert the map values (unique tasks) back to an array and return it
     // console.log("check here-",columnName, visibleTasks.values())
-    return Array.from(visibleTasks.values());
+    return [... new Set(Array.from(visibleTasks.values()))];
   }
 
   addRepeatTasks(repeatedTasks: Task[]): void {
@@ -259,23 +345,23 @@ export class BoardComponent {
       for (const column of this.board.columns) {
         if (this.isTaskInColumnTimeFrame(task, column)) {
           column.tasks.push(task);
-  
+
           // Store the updated board in local storage
-          const boardFromLocalStorage = JSON.parse(localStorage.getItem("board") || "{}");  
+          const boardFromLocalStorage = JSON.parse(localStorage.getItem("board") || "{}");
           const columnToUpdate = boardFromLocalStorage.columns.find((col: Column) => col.name === column.name);
           if (columnToUpdate) {
-            columnToUpdate.tasks.push(task);  
+            columnToUpdate.tasks.push(task);
             localStorage.setItem("board", JSON.stringify(boardFromLocalStorage));
           } else {
             console.error("Column not found in localStorage:", column.name);
           }
-  
+
           break;
         }
       }
     });
   }
-  
+
 
   isTaskInColumnTimeFrame(task: Task, column: Column): boolean {
     const dueDate = new Date(task.fixed_dueDate);
@@ -303,5 +389,17 @@ export class BoardComponent {
       default:
         return false;
     }
+  }
+
+  private _sortArrayOutTime(): void {
+    this.board.columns[0].tasks.sort((a, b) => {
+      if (a.outTime && !b.outTime) {
+        return -1;
+      } else if (!a.outTime && b.outTime) {
+        return 1;
+      } else {
+        return 0;
+      }
+    });
   }
 }

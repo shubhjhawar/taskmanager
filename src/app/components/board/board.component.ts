@@ -37,9 +37,14 @@ import {
 })
 export class BoardComponent {
   @Input() board!: Board;
-  constructor(private dialog: MatDialog) {}
-
   @Input() column!: Column;
+  @Output() eventDrag = new EventEmitter();
+  @Output() eventChangeName: EventEmitter<Column> = new EventEmitter<Column>();
+  constructor(private dialog: MatDialog) {
+
+  }
+
+
 
   drop(event: CdkDragDrop<Task[]>) {
     if (event.previousContainer === event.container) {
@@ -50,13 +55,13 @@ export class BoardComponent {
       // getting localstorage and columnName
       const boardFromLocalStorage = JSON.parse(localStorage.getItem("board") || "{}");
       const columnName = event.container.element.nativeElement.getAttribute('data-column-name');
-      
+
       if (columnName) {
         // finding the column to update
         const columnToUpdate = boardFromLocalStorage.columns.find((col: Column) => col.name === columnName);
         if (columnToUpdate) {
           // Update tasks array in localStorage with the new order
-          columnToUpdate.tasks = event.container.data; 
+          columnToUpdate.tasks = event.container.data;
         } else {
           console.error("Column not found in localStorage:", columnName);
         }
@@ -71,11 +76,11 @@ export class BoardComponent {
       const taskToMove = event.previousContainer.data[event.previousIndex];
       transferArrayItem(
         event.previousContainer.data,
-        event.container.data, 
+        event.container.data,
         event.previousIndex,
         event.currentIndex
       );
-  
+
       // getting localstorage and columnName
       const boardFromLocalStorage = JSON.parse(localStorage.getItem("board") || "{}");
       const columnName = event.container.element.nativeElement.getAttribute('data-column-name');
@@ -84,10 +89,12 @@ export class BoardComponent {
         // finding the two columns
         const prevColToUpdate = boardFromLocalStorage.columns.find((col: Column) => col.name === previousColumnName);
         const columnToUpdate = boardFromLocalStorage.columns.find((col: Column) => col.name === columnName);
+        this.eventDrag.emit(this.board.columns);
         if (prevColToUpdate && columnToUpdate) {
           // updating the two columns
           prevColToUpdate.tasks = event.previousContainer.data
           columnToUpdate.tasks = event.container.data;
+
           localStorage.setItem("board", JSON.stringify(boardFromLocalStorage));
         } else {
           console.error("Column not found in localStorage:", columnName);
@@ -109,16 +116,16 @@ export class BoardComponent {
   }
 
   addTask(task: Task): void {
-    const newTask = new Task(task.heading, task.description, task.fixed_dueDate, task.variable_dueDate, null, false, null, null);  
+    const newTask = new Task(task.heading, task.description, task.fixed_dueDate, task.variable_dueDate, null, false, null, null);
     const columnName = this.column.name;
-    
-    const boardFromLocalStorage = JSON.parse(localStorage.getItem("board") || "{}");  
+
+    const boardFromLocalStorage = JSON.parse(localStorage.getItem("board") || "{}");
     const columnToUpdate = boardFromLocalStorage.columns.find((col: Column) => col.name === columnName);
-  
+
     if (columnToUpdate) {
-      columnToUpdate.tasks.push(newTask);  
+      columnToUpdate.tasks.push(newTask);
       localStorage.setItem("board", JSON.stringify(boardFromLocalStorage));
-  
+
       console.log("Updated board:", boardFromLocalStorage);
     } else {
       console.error("Column not found in localStorage:", columnName);
@@ -127,7 +134,7 @@ export class BoardComponent {
     this.column.tasks.push(newTask);
     console.log("hehe")
   }
-  
+
 
   onDeleteTask(task: Task): void {
     const index = this.column.tasks.findIndex((t: Task) => t === task);
@@ -154,7 +161,7 @@ export class BoardComponent {
     }
   }
 
-  
+
 
   toggleEditColumn() {
     this.isEditingColumn = !this.isEditingColumn;
@@ -166,6 +173,7 @@ export class BoardComponent {
   onEditColumn() {
     this.column.name = this.editedColumnName;
     this.isEditingColumn = false;
+    this.eventChangeName.emit(this.column);
   }
 
   onDeleteColumn(column: Column): void {
@@ -175,15 +183,15 @@ export class BoardComponent {
 
   filterTasks(columnName: string, tasks: Task[]): Task[] {
     const currentDate = new Date();
-    let uniqueTasks: Map<string, Task> = new Map(); 
+    let uniqueTasks: Map<string, Task> = new Map();
 
     tasks.forEach(task => {
         uniqueTasks.set(task.heading, task);
     });
-    console.log(columnName)
+    //console.log(columnName)
     // console.log(uniqueTasks)
     let visibleTasks: Task[] = [];
-    
+
     uniqueTasks.forEach((task, key) => {
       const timeInQuestion = new Date(task.fixed_dueDate)
       if(!task.repeat){
@@ -244,7 +252,7 @@ export class BoardComponent {
       //     visibleTasks.push(task)
       //   // }
       // }
-      
+
     })
     // Convert the map values (unique tasks) back to an array and return it
     // console.log("check here-",columnName, visibleTasks.values())
@@ -259,23 +267,23 @@ export class BoardComponent {
       for (const column of this.board.columns) {
         if (this.isTaskInColumnTimeFrame(task, column)) {
           column.tasks.push(task);
-  
+
           // Store the updated board in local storage
-          const boardFromLocalStorage = JSON.parse(localStorage.getItem("board") || "{}");  
+          const boardFromLocalStorage = JSON.parse(localStorage.getItem("board") || "{}");
           const columnToUpdate = boardFromLocalStorage.columns.find((col: Column) => col.name === column.name);
           if (columnToUpdate) {
-            columnToUpdate.tasks.push(task);  
+            columnToUpdate.tasks.push(task);
             localStorage.setItem("board", JSON.stringify(boardFromLocalStorage));
           } else {
             console.error("Column not found in localStorage:", column.name);
           }
-  
+
           break;
         }
       }
     });
   }
-  
+
 
   isTaskInColumnTimeFrame(task: Task, column: Column): boolean {
     const dueDate = new Date(task.fixed_dueDate);
